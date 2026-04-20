@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: basic-topology
+  namespace: examples
+spec:
+  components:
+    - name: nginx-basic
+      type: webservice
+      properties:
+        image: nginx
+      traits:
+        - type: expose
+          properties:
+            port: [80]
+  policies:
+    - name: topology-local-spoke1
+      type: ocm-topology
+      properties:
+        clusters: ["spoke1"]
+        namespace: ns-in-spoke1
+    - name: topology-local-spoke2
+      type: ocm-topology
+      properties:
+        clusters: ["spoke2"]
+        namespace: ns-in-spoke2

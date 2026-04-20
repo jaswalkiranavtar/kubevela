@@ -50,6 +50,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
+	ocmworkv1 "open-cluster-management.io/api/work/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -98,7 +100,7 @@ var _ = BeforeSuite(func() {
 		ControlPlaneStartTimeout: time.Minute,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       ptr.To(false),
-		CRDDirectoryPaths:        []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
+		CRDDirectoryPaths:        []string{yamlPath, "./testdata/crds"},
 	}
 
 	var err error
@@ -117,6 +119,10 @@ var _ = BeforeSuite(func() {
 	err = crdv1.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = cuexv1alpha1.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = ocmclusterv1.Install(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = ocmworkv1.Install(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
