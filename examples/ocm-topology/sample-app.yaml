@@ -1,0 +1,36 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  components:
+    - name: web
+      type: webservice
+      properties:
+        image: nginx:latest
+        port: 80
+    - name: backend
+      type: webservice
+      properties:
+        image: my-backend:v1
+        port: 8080
+  policies:
+    - name: fan-out
+      type: ocm-topology
+      properties:
+        clusters:
+          # cluster1 uses the base component specs as-is
+          - name: cluster1
+          # cluster2 overrides web's image and adds a scaler trait to backend
+          - name: cluster2
+            overrides:
+              - component: web
+                properties:
+                  image: nginx:1.27
+                  port: 80
+              - component: backend
+                traits:
+                  - type: scaler
+                    properties:
+                      replicas: 3
