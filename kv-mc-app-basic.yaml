@@ -1,0 +1,70 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: basic-topology
+  namespace: examples
+spec:
+  components:
+    - name: nginx-basic
+      type: webservice
+      properties:
+        image: nginx
+        port: 80
+      traits:
+        - type: expose
+          properties:
+            port: [80]
+        - type: gateway
+          properties:
+            domain: nginx.example.com
+            http:
+              "/": 80
+    - name: redis-backend
+      type: webservice
+      properties:
+        image: redis:7-alpine
+        port: 6379
+      traits:
+        - type: expose
+          properties:
+            port: [6379]
+  policies:
+    - name: topology-local-spoke1
+      type: ocm-topology
+      properties:
+        clusters: ["spoke1"]
+        namespace: ns-in-spoke1
+    - name: topology-local-spoke2
+      type: ocm-topology
+      properties:
+        clusters: ["spoke2"]
+        namespace: ns-in-spoke2
+    - name: override-spoke1-resources
+      type: override
+      properties:
+        components:
+          - name: nginx-basic
+            properties:
+              port: 81
+    - name: override-spoke2-resources
+      type: override
+      properties:
+        components:
+          - name: nginx-basic
+            properties:
+              port: 82
+    - name: gc-policy
+      type: garbage-collect
+      properties:
+        keepLegacyResource: false
+  workflow:
+    steps:
+      - name: deploy-spoke1
+        type: deploy-ocm
+        properties:
+          policies: ["topology-local-spoke1", "override-spoke1-resources"]
+      - name: deploy-spoke2
+        type: deploy-ocm
+        properties:
+          policies: ["topology-local-spoke2", "override-spoke2-resources"]
+

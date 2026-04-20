@@ -19,6 +19,8 @@ package step
 const (
 	// DeployWorkflowStep identifies the step of deploy components in multi-clusters
 	DeployWorkflowStep = "deploy"
+	// DeployOCMWorkflowStep identifies the step of deploy application to OCM managed clusters via ManifestWork
+	DeployOCMWorkflowStep = "deploy-ocm"
 )
 
 // DeployWorkflowStepSpec the spec of `deploy` WorkflowStep
@@ -31,4 +33,14 @@ type DeployWorkflowStepSpec struct {
 	Parallelism *int `json:"parallelism,omitempty"`
 	// IgnoreTerraformComponent default is true, true means this step will apply the components without the terraform workload.
 	IgnoreTerraformComponent *bool `json:"ignoreTerraformComponent,omitempty"`
+}
+
+// DeployOCMWorkflowStepSpec the spec of `deploy-ocm` WorkflowStep
+type DeployOCMWorkflowStepSpec struct {
+	// Auto nil/true mean auto deploy, false means additional pre-approve step will be injected before the deploy-ocm step
+	Auto *bool `json:"auto,omitempty"`
+	// Policies specifies the policies to use in the step (ocm-topology and override policies)
+	Policies []string `json:"policies,omitempty"`
+	// Parallelism allows setting parallelism for the cluster deployment process
+	Parallelism *int `json:"parallelism,omitempty"`
 }

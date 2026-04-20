@@ -88,6 +88,10 @@ func (g *ApplyComponentWorkflowStepGenerator) Generate(app *v1beta1.Application,
 	if len(existingSteps) > 0 {
 		return existingSteps, nil
 	}
+	// Skip if ocm-topology policy is present - OCM handles deployment via ManifestWork only
+	if hasOCMTopologyPolicy(app) {
+		return existingSteps, nil
+	}
 	for _, comp := range app.Spec.Components {
 		steps = append(steps, wfTypesv1alpha1.WorkflowStep{
 			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
@@ -109,6 +113,10 @@ type Deploy2EnvWorkflowStepGenerator struct{}
 // Generate generate workflow steps
 func (g *Deploy2EnvWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []wfTypesv1alpha1.WorkflowStep) (steps []wfTypesv1alpha1.WorkflowStep, err error) {
 	if len(existingSteps) > 0 {
+		return existingSteps, nil
+	}
+	// Skip if ocm-topology policy is present - OCM handles deployment via ManifestWork only
+	if hasOCMTopologyPolicy(app) {
 		return existingSteps, nil
 	}
 	for _, policy := range app.Spec.Policies {
@@ -140,6 +148,10 @@ type DeployWorkflowStepGenerator struct{}
 // Generate generate workflow steps
 func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []wfTypesv1alpha1.WorkflowStep) (steps []wfTypesv1alpha1.WorkflowStep, err error) {
 	if len(existingSteps) > 0 {
+		return existingSteps, nil
+	}
+	// Skip if ocm-topology policy is present - OCM handles deployment via ManifestWork only
+	if hasOCMTopologyPolicy(app) {
 		return existingSteps, nil
 	}
 	var topologies []string
@@ -184,6 +196,38 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 	return steps, nil
 }
 
+// OCMDeployWorkflowStepGenerator generate deploy-ocm workflow steps for all ocm-topology & override in the application
+type OCMDeployWorkflowStepGenerator struct{}
+
+// Generate generate workflow steps
+func (g *OCMDeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []wfTypesv1alpha1.WorkflowStep) (steps []wfTypesv1alpha1.WorkflowStep, err error) {
+	if len(existingSteps) > 0 {
+		return existingSteps, nil
+	}
+	var ocmTopologies []string
+	var overrides []string
+	for _, policy := range app.Spec.Policies {
+		switch policy.Type {
+		case v1alpha1.OCMTopologyPolicyType:
+			ocmTopologies = append(ocmTopologies, policy.Name)
+		case v1alpha1.OverridePolicyType:
+			overrides = append(overrides, policy.Name)
+		}
+	}
+	for _, ocmTopology := range ocmTopologies {
+		steps = append(steps, wfTypesv1alpha1.WorkflowStep{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+				Name: "deploy-ocm-" + ocmTopology,
+				Type: DeployOCMWorkflowStep,
+				Properties: util.Object2RawExtension(map[string]interface{}{
+					"policies": append(overrides, ocmTopology),
+				}),
+			},
+		})
+	}
+	return steps, nil
+}
+
 // IsBuiltinWorkflowStepType checks if workflow step type is builtin type
 func IsBuiltinWorkflowStepType(wfType string) bool {
 	for _, _type := range []string{
@@ -193,6 +237,16 @@ func IsBuiltinWorkflowStepType(wfType string) bool {
 		wftypes.WorkflowStepTypeStepGroup,
 	} {
 		if _type == wfType {
+			return true
+		}
+	}
+	return false
+}
+
+// hasOCMTopologyPolicy checks if the application has an ocm-topology policy
+func hasOCMTopologyPolicy(app *v1beta1.Application) bool {
+	for _, policy := range app.Spec.Policies {
+		if policy.Type == v1alpha1.OCMTopologyPolicyType {
 			return true
 		}
 	}

@@ -352,6 +352,7 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		case v1alpha1.ResourceUpdatePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.OCMTopologyPolicyType:
 		case v1alpha1.OverridePolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
@@ -388,6 +389,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		case v1alpha1.ResourceUpdatePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.OCMTopologyPolicyType:
 		case v1alpha1.ReplicationPolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
@@ -459,6 +461,7 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 	}
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
 		&step.RefWorkflowStepGenerator{Client: af.WorkflowClient(p.client), Context: ctx},
+		&step.OCMDeployWorkflowStepGenerator{},
 		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
 		&step.ApplyComponentWorkflowStepGenerator{},

@@ -580,3 +580,177 @@ func TestIsBuiltinWorkflowStepType(t *testing.T) {
 	assert.True(t, IsBuiltinWorkflowStepType("step-group"))
 	assert.True(t, IsBuiltinWorkflowStepType("builtin-apply-component"))
 }
+
+func TestOCMTopologyPolicySkipsNormalRendering(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).Build()
+
+	// Test 1: App WITHOUT ocm-topology policy should render normally (apply-component steps)
+	t.Run("without-ocm-topology-renders-normally", func(t *testing.T) {
+		app := &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name: "nginx",
+					Type: "webservice",
+				}, {
+					Name: "backend",
+					Type: "webservice",
+				}},
+			},
+		}
+
+		generator := NewChainWorkflowStepGenerator(
+			&RefWorkflowStepGenerator{Context: context.Background(), Client: cli},
+			&OCMDeployWorkflowStepGenerator{},
+			&DeployWorkflowStepGenerator{},
+			&Deploy2EnvWorkflowStepGenerator{},
+			&ApplyComponentWorkflowStepGenerator{},
+		)
+
+		output, err := generator.Generate(app, []wfTypesv1alpha1.WorkflowStep{})
+		r.NoError(err)
+		r.Len(output, 2)
+		r.Equal("apply-component", output[0].Type)
+		r.Equal("apply-component", output[1].Type)
+	})
+
+	// Test 2: App WITH ocm-topology policy should NOT generate apply-component steps
+	t.Run("with-ocm-topology-skips-apply-component", func(t *testing.T) {
+		app := &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name: "nginx",
+					Type: "webservice",
+				}},
+				Policies: []v1beta1.AppPolicy{{
+					Name:       "ocm-deploy",
+					Type:       v1alpha1.OCMTopologyPolicyType,
+					Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["cluster-a"]}`)},
+				}},
+			},
+		}
+
+		generator := NewChainWorkflowStepGenerator(
+			&RefWorkflowStepGenerator{Context: context.Background(), Client: cli},
+			&OCMDeployWorkflowStepGenerator{},
+			&DeployWorkflowStepGenerator{},
+			&Deploy2EnvWorkflowStepGenerator{},
+			&ApplyComponentWorkflowStepGenerator{},
+		)
+
+		output, err := generator.Generate(app, []wfTypesv1alpha1.WorkflowStep{})
+		r.NoError(err)
+		r.Len(output, 1)
+		r.Equal(DeployOCMWorkflowStep, output[0].Type)
+		r.Equal("deploy-ocm-ocm-deploy", output[0].Name)
+	})
+
+	// Test 3: App WITH ocm-topology and topology policy should only generate deploy-ocm steps (not deploy steps)
+	t.Run("with-ocm-topology-skips-deploy-steps", func(t *testing.T) {
+		app := &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name: "nginx",
+					Type: "webservice",
+				}},
+				Policies: []v1beta1.AppPolicy{{
+					Name:       "ocm-deploy",
+					Type:       v1alpha1.OCMTopologyPolicyType,
+					Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["cluster-a"]}`)},
+				}, {
+					Name: "topology-1",
+					Type: v1alpha1.TopologyPolicyType,
+				}},
+			},
+		}
+
+		generator := NewChainWorkflowStepGenerator(
+			&RefWorkflowStepGenerator{Context: context.Background(), Client: cli},
+			&OCMDeployWorkflowStepGenerator{},
+			&DeployWorkflowStepGenerator{},
+			&Deploy2EnvWorkflowStepGenerator{},
+			&ApplyComponentWorkflowStepGenerator{},
+		)
+
+		output, err := generator.Generate(app, []wfTypesv1alpha1.WorkflowStep{})
+		r.NoError(err)
+		r.Len(output, 1)
+		r.Equal(DeployOCMWorkflowStep, output[0].Type)
+		// No "deploy" type step should be generated
+		for _, step := range output {
+			r.NotEqual("deploy", step.Type)
+			r.NotEqual("apply-component", step.Type)
+		}
+	})
+
+	// Test 4: App WITH ocm-topology and override policies should include overrides in deploy-ocm step
+	t.Run("with-ocm-topology-includes-override-policies", func(t *testing.T) {
+		app := &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name: "nginx",
+					Type: "webservice",
+				}},
+				Policies: []v1beta1.AppPolicy{{
+					Name:       "ocm-deploy",
+					Type:       v1alpha1.OCMTopologyPolicyType,
+					Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["cluster-a"]}`)},
+				}, {
+					Name:       "override-prod",
+					Type:       v1alpha1.OverridePolicyType,
+					Properties: &runtime.RawExtension{Raw: []byte(`{"components":[]}`)},
+				}},
+			},
+		}
+
+		generator := NewChainWorkflowStepGenerator(
+			&RefWorkflowStepGenerator{Context: context.Background(), Client: cli},
+			&OCMDeployWorkflowStepGenerator{},
+			&DeployWorkflowStepGenerator{},
+			&Deploy2EnvWorkflowStepGenerator{},
+			&ApplyComponentWorkflowStepGenerator{},
+		)
+
+		output, err := generator.Generate(app, []wfTypesv1alpha1.WorkflowStep{})
+		r.NoError(err)
+		r.Len(output, 1)
+		r.Equal(DeployOCMWorkflowStep, output[0].Type)
+		// Verify the policies include both override and ocm-topology
+		r.Contains(string(output[0].Properties.Raw), "override-prod")
+		r.Contains(string(output[0].Properties.Raw), "ocm-deploy")
+	})
+}
+
+func TestHasOCMTopologyPolicy(t *testing.T) {
+	r := require.New(t)
+
+	// Test without OCM topology policy
+	app := &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{
+			Policies: []v1beta1.AppPolicy{{
+				Name: "topology",
+				Type: v1alpha1.TopologyPolicyType,
+			}},
+		},
+	}
+	r.False(hasOCMTopologyPolicy(app))
+
+	// Test with OCM topology policy
+	app = &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{
+			Policies: []v1beta1.AppPolicy{{
+				Name: "ocm-deploy",
+				Type: v1alpha1.OCMTopologyPolicyType,
+			}},
+		},
+	}
+	r.True(hasOCMTopologyPolicy(app))
+
+	// Test with empty policies
+	app = &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{
+			Policies: []v1beta1.AppPolicy{},
+		},
+	}
+	r.False(hasOCMTopologyPolicy(app))
+}

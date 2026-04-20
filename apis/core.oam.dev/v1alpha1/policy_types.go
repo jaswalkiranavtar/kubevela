@@ -25,6 +25,9 @@ const (
 	DebugPolicyType = "debug"
 	// ReplicationPolicyType refers to the type of replication policy
 	ReplicationPolicyType = "replication"
+	// OCMTopologyPolicyType refers to the type of OCM topology policy
+	// which deploys applications to OCM managed clusters via ManifestWork
+	OCMTopologyPolicyType = "ocm-topology"
 )
 
 // TopologyPolicySpec defines the spec of topology policy
@@ -66,4 +69,15 @@ type ReplicationPolicySpec struct {
 	Keys []string `json:"keys,omitempty"`
 	// Selector is the subset of selected components which will be replicated.
 	Selector []string `json:"selector,omitempty"`
+}
+
+// OCMTopologyPolicySpec defines the spec of OCM topology policy
+// This policy deploys applications to OCM managed clusters by wrapping
+// the entire Application in ManifestWork resources
+type OCMTopologyPolicySpec struct {
+	// Placement embeds the selectors for choosing managed clusters
+	Placement `json:",inline"`
+	// Namespace is the target namespace to deploy the wrapped Application in the managed clusters.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
