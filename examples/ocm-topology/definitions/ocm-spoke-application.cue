@@ -7,11 +7,14 @@
 		workload: type: "autodetects.core.oam.dev"
 		status: {
 			customStatus: #"""
-				_manifests: *[] | [...] & context.output.status.resourceStatus.manifests
-				_feedbacks: *[] | [...] & {
-					if len(_manifests) > 0 {
-						_manifests[0].statusFeedbacks.values
-					}
+				_feedbacks: *[] | [...{...}]
+				if context.output.status != _|_
+				if context.output.status.resourceStatus != _|_
+				if context.output.status.resourceStatus.manifests != _|_
+				if len(context.output.status.resourceStatus.manifests) > 0
+				if context.output.status.resourceStatus.manifests[0].statusFeedback != _|_
+				if context.output.status.resourceStatus.manifests[0].statusFeedback.values != _|_ {
+					_feedbacks: context.output.status.resourceStatus.manifests[0].statusFeedback.values
 				}
 				_spokePhase: *"unknown" | string
 				for v in _feedbacks if v.name == "status" {
@@ -20,11 +23,14 @@
 				message: "spoke application phase: \(_spokePhase)"
 				"""#
 			healthPolicy: #"""
-				_manifests: *[] | [...] & context.output.status.resourceStatus.manifests
-				_feedbacks: *[] | [...] & {
-					if len(_manifests) > 0 {
-						_manifests[0].statusFeedbacks.values
-					}
+				_feedbacks: *[] | [...{...}]
+				if context.output.status != _|_
+				if context.output.status.resourceStatus != _|_
+				if context.output.status.resourceStatus.manifests != _|_
+				if len(context.output.status.resourceStatus.manifests) > 0
+				if context.output.status.resourceStatus.manifests[0].statusFeedback != _|_
+				if context.output.status.resourceStatus.manifests[0].statusFeedback.values != _|_ {
+					_feedbacks: context.output.status.resourceStatus.manifests[0].statusFeedback.values
 				}
 				_spokePhase: *"" | string
 				for v in _feedbacks if v.name == "status" {

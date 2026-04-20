@@ -3,17 +3,21 @@ kind: Application
 metadata:
   name: my-app
   namespace: default
+  annotations:
+    # Required for app-scoped policies: trigger new ApplicationRevisions when
+    # the policy-rendered spec changes (e.g. cluster list, overrides).
+    policy.oam.dev/auto-revision: "true"
 spec:
   components:
     - name: web
       type: webservice
       properties:
-        image: nginx:latest
+        image: nginx:1.26
         port: 80
     - name: backend
       type: webservice
       properties:
-        image: my-backend:v1
+        image: nginx:stable
         port: 8080
   policies:
     - name: fan-out
